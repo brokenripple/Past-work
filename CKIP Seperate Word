@@ -1,0 +1,112 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+import sys
+sys.path.append('/content/drive/My Drive/ColabNotebooks/ckiptagger')
+
+#import requests
+#url = 'http://ckip.iis.sinica.edu.tw/data/ckiptagger/data.zip'
+#r = requests.get(url, allow_redirects=True)
+#open('data.zip', 'wb').write(r.content)
+#!mv "data.zip" "/content/drive/MyDrive/ColabNotebooks/ckiptagger/data"
+
+#import zipfile
+#with zipfile.ZipFile("/content/drive/MyDrive/ColabNotebooks/ckiptagger/data/data.zip", 'r') as zip_ref:
+#  zip_ref.extractall("/content/drive/MyDrive/ColabNotebooks/ckiptagger/data/")
+
+!pip install -U ckiptagger[tfgpu,gdown]
+
+!pip install pymysql
+import LinkMariaDB
+from ckiptagger import data_utils, construct_dictionary, WS, POS, NER
+
+print ("Load Jieba Dict.")
+my_file = open("/content/drive/MyDrive/ColabNotebooks/ckiptagger/dict.txt.big", "r", encoding = "UTF-8")
+content = my_file.read()
+wlist = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o","p","q","r","s","t","u","v","w","x","y","z","1","2","3","4","5","6","7","8","9","0"]
+glist = "':!),.:;?]}¢、。〉》」』】〕〗〞︰︱︳﹐､﹒﹔﹕﹖﹗﹚﹜﹞！），．：；？｜｝︴︶︸︺︼︾﹀﹂﹄﹏､～￠々‖•·ˇˉ―--′’”([{£¥‵〈《「『【〔〖（［｛￡￥〝︵︷︹︻︽︿﹁﹃﹙﹛﹝（｛“‘-—_…~/ －＊➜■─★☆=@<>◉é'"
+newcontent = ""
+for word in content:
+    if word in wlist:
+        pass
+    else:
+        newcontent = newcontent + word
+
+content_list = newcontent.split("\n")
+my_file.close()
+
+final_jieba_list = []
+for n in content_list:
+    n = n.replace("  ", "")
+    final_jieba_list.append(n)
+print ("Loaded Jieba Dict as final_jieba_list.")
+
+
+hostName = 'XXX'
+portNum = XXX
+DBName = 'XXX'
+username = 'XXX'
+password = 'XXX'
+CharSet = "XXX"
+
+DB = LinkMariaDB.OpMariaSQL(hostName, portNum, username, password, DBName, CharSet)
+raw_data = DB.IntputFindCmd(f"SELECT content FROM main WHERE label_1 = '1' OR label_2 = '1'")
+
+def remove_duplicate_from_list(temp_list):
+        if temp_list:
+            my_list_temp = []
+            for word in temp_list:
+                if word not in my_list_temp:
+                    my_list_temp.append(word)
+            return my_list_temp
+        else: return []
+        
+from google.colab import output
+ws = WS("/content/drive/MyDrive/ColabNotebooks/ckiptagger/data", disable_cuda=False)
+for n in range (len(raw_data)):
+
+
+    file = open("/content/drive/MyDrive/ColabNotebooks/ckiptagger/final_words_list.txt", "r", encoding = "UTF-8")  
+    text = file.read()         
+    final_words_list = text.split("\n")
+    print (final_words_list)
+    file.close()        
+
+    print ("Handling:", raw_data[n][0])
+    content = raw_data[n][0]
+    
+    sentence_list = []
+    sentence_list.append(content)
+
+    words = ws(sentence_list, sentence_segmentation=True,segment_delimiter_set={",", "。", ":", "?", "!", ";"})
+    words = remove_duplicate_from_list(words[0])
+    
+    for i in words:
+        if len(i) < 3 or len(i) > 20:
+          continue
+
+        if i[0] == " ":
+          i = i[1:]
+        if i[-1] == " ":
+          i = i[:-1]
+
+        if i in final_jieba_list:
+          continue
+        if i in final_words_list:
+          continue
+        
+        else:
+              file = open("/content/drive/MyDrive/ColabNotebooks/ckiptagger/final_words_list.txt", "a+", encoding = "UTF-8")      
+              # Move read cursor to the start of file.
+              file.seek(0)
+              # If file is not empty then append '\n'
+              data = file.read(100)
+              if len(data) > 0 :
+                file.write("\n")
+              # Append text at the end of file
+              file.write(i)
+              file.close()
+
+    print (len(raw_data) - n, "To go!")
+    if n % 10 == 0:
+      output.clear()
